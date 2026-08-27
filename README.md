@@ -1,73 +1,72 @@
-# SafeLauncherCloud — Self-Hosted Convex Cloud Save Backend
+# SafeLauncherCloud
 
 Private, self-hosted cloud save synchronization backend for [SafeLauncher](https://github.com/Mistarin/SafeLauncher).
 
-Provides zero-knowledge encrypted game save backups on Convex File Storage with version rollback and zero maintenance overhead.
+Stores client-encrypted game save backups on Convex File Storage with version rollback.
 
 ---
 
-## ⚡ 2-Minute Quick Start
+## Quickstart
 
-### 1. Create a Free Convex Account
-1. Visit [convex.dev](https://convex.dev) and sign up (100% free with 1 GB storage & bandwidth).
-2. Install the Convex CLI if you haven't already:
+### 1. Create a Convex account
+1. Sign up at [convex.dev](https://convex.dev).
+2. Install the Convex CLI:
    ```bash
    npm install -g convex
    ```
 
-### 2. Clone & Deploy Your Private Cloud
+### 2. Clone and deploy
 ```bash
 git clone https://github.com/Mistarin/SafeLauncherCloud.git
 cd SafeLauncherCloud
 npm install
 
-# Deploy directly to your free Convex account
+# Deploy to your Convex project
 npx convex deploy
 ```
 
-### 3. (Optional) Set a Secret Access Key
-To protect your instance with a secret passphrase:
+### 3. (Optional) Set a secret access key
+To require a shared secret on API requests:
 ```bash
-npx convex env set SAFELAUNCHER_SECRET_KEY your-super-secret-passphrase
+npx convex env set SAFELAUNCHER_SECRET_KEY your-secret-passphrase
 ```
 
 ### 4. Connect to SafeLauncher
-Run the terminal setup wizard in SafeLauncher:
+Run the setup wizard in SafeLauncher:
 ```bash
 safelauncher --setup-cloud
 ```
 * Enter your **Convex Site URL** (e.g. `https://your-project.convex.site`)
 * Enter your **Secret Key** (if configured)
-* SafeLauncher will verify the connection and begin syncing your game saves automatically!
 
 ---
 
-## 🔒 Security & Privacy
+## Security and privacy
 
-* **Client-Side AES-256-GCM Encryption**: Save archives are encrypted on your local machine before being sent over HTTPS.
-* **100% Private**: You own your Convex instance. No third parties have access to your save files.
-* **Automatic Pruning**: Retains the latest 3 save generations per game automatically to optimize storage quota.
+* **Client-side AES-256-GCM encryption**: Save archives are encrypted locally before upload over HTTPS.
+* **Self-hosted**: You control the Convex deployment. No external service has access to decrypted save files.
+* **Automatic pruning**: Retains the 3 most recent save versions per game to stay within storage limits.
 
 ---
 
-## 📊 Storage Limits
+## Storage limits
 
 | Parameter | Value |
 | :--- | :--- |
-| **Max Save Upload Size** | 50 MiB per game save |
-| **Default Storage Quota** | 1 GiB (Matches Convex free tier) |
-| **Version History** | 3 versions retained per game |
+| Max save upload size | 50 MiB per game save |
+| Default storage quota | 1 GiB (matches Convex free tier) |
+| Version history | 3 versions retained per game |
 
 ---
 
-## 🛠️ API Reference
+## API reference
 
 | Method | Endpoint | Purpose |
 | :--- | :--- | :--- |
 | `GET` | `/api/health` | Liveness health check |
-| `GET` | `/api/me` | Account overview & storage quota |
-| `GET` | `/api/games` | List all backed-up games & version history |
+| `GET` | `/api/me` | Account overview and storage quota |
+| `GET` | `/api/games` | List all backed-up games and version history |
 | `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
-| `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload & promote save version |
+| `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload and promote save version |
 | `GET` | `/api/games/{nameKey}/download` | Fetch download URL for latest or specific version |
 | `DELETE` | `/api/games/{nameKey}` | Delete a specific save generation |
