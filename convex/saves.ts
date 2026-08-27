@@ -15,15 +15,23 @@ import { MAX_SAVE_BYTES, QUOTA_BYTES, KEEP_VERSIONS } from "./lib/limits";
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
-async function userBySubject(ctx: MutationCtx | QueryCtx) {
-  const identity = await requireIdentity(ctx);
-  const user = await ctx.db
+async function userBySubject(ctx: MutationCtx | QueryCtx, authSubject?: string) {
+  let subject = authSubject;
+  if (!subject) {
+    const identity = await requireIdentity(ctx);
+    subject = identity.subject;
+  }
+  let user = await ctx.db
     .query("users")
-    .withIndex("by_subject", (q) => q.eq("subject", identity.subject))
+    .withIndex("by_subject", (q) => q.eq("subject", subject!))
     .unique();
   if (!user) {
-    // Direct REST calls without prior provisioning fail closed here.
-    throw new ApiError(404, "user_missing", "Account not provisioned.");
+    const userId = await ctx.db.insert("users", {
+      subject: subject!,
+      email: "owner@self-hosted",
+      createdAt: Date.now(),
+    });
+    user = (await ctx.db.get(userId))!;
   }
   return user;
 }
@@ -47,6 +55,7 @@ async function bytesUsedForUser(
  */
 export const requestUpload = mutation({
   args: {
+    authSubject: v.optional(v.string()),
     nameKey: v.string(),
     displayName: v.string(),
     plainSha256: v.string(),
@@ -66,19 +75,7 @@ export const requestUpload = mutation({
       throw new ApiError(400, "bad_hash", "plainSha256 must be lowercase hex sha256.");
     }
 
-    const identity = await requireIdentity(ctx);
-    let user = await ctx.db
-      .query("users")
-      .withIndex("by_subject", (q) => q.eq("subject", identity.subject))
-      .unique();
-    if (!user) {
-      const userId = await ctx.db.insert("users", {
-        subject: identity.subject,
-        email: identity.email,
-        createdAt: Date.now(),
-      });
-      user = (await ctx.db.get(userId))!;
-    }
+    const user = await userBySubject(ctx, args.authSubject);
 
     // Garbage-collect abandoned pending uploads for this account.
     const cutoff = Date.now() - PENDING_TTL_MS;
@@ -147,6 +144,7 @@ function isStorageMetadata(meta: unknown): meta is { size: number } {
  */
 export const confirmUpload = mutation({
   args: {
+    authSubject: v.optional(v.string()),
     nameKey: v.string(),
     saveId: v.id("saves"),
     storageId: v.id("_storage"),
@@ -158,7 +156,7 @@ export const confirmUpload = mutation({
     gameTotalBytes: v.number(),
   }),
   handler: async (ctx, args) => {
-    const user = await userBySubject(ctx);
+    const user = await userBySubject(ctx, args.authSubject);
 
     const save = await ctx.db.get(args.saveId);
     if (!save || save.userId !== user._id) {
@@ -242,7 +240,9 @@ export const confirmUpload = mutation({
 
 /** All games with their retained generation metadata for conflict checks. */
 export const listGames = query({
-  args: {},
+  args: {
+    authSubject: v.optional(v.string()),
+  },
   returns: v.object({
     games: v.array(
       v.object({
@@ -264,8 +264,8 @@ export const listGames = query({
     bytesUsed: v.number(),
     quotaBytes: v.number(),
   }),
-  handler: async (ctx) => {
-    const user = await userBySubject(ctx);
+  handler: async (ctx, args) => {
+    const user = await userBySubject(ctx, args.authSubject);
     const out: Array<{
       nameKey: string; displayName: string; totalBytes: number;
       latestSourceMtime: number;
@@ -309,21 +309,27 @@ export const listGames = query({
 
 /** Metadata used by the download flow: resolves an expiring blob URL. */
 export const resolveDownload = action({
-  args: { nameKey: v.string(), version: v.optional(v.number()) },
+  args: {
+    authSubject: v.optional(v.string()),
+    nameKey: v.string(),
+    version: v.optional(v.number()),
+  },
   returns: v.union(
     v.null(),
     v.object({ url: v.string(), sizeBytes: v.number(), version: v.number() })
   ),
   handler: async (ctx, args): Promise<{ url: string; sizeBytes: number; version: number } | null> => {
-    const identity = await requireIdentity(ctx);
+    let subject = args.authSubject;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+    }
     const ref = await ctx.runQuery(internal.saves.lookupDownloadRefInternal, {
-      subject: identity.subject,
+      subject: subject!,
       nameKey: args.nameKey,
       version: args.version,
     });
     if (!ref) return null;
-    // Blob contents are client-encrypted ciphertext, so the URL alone is
-    // useless without the caller's data key.
     const url = await ctx.storage.getUrl(ref.storageId);
     if (!url) return null;
     return { url, sizeBytes: ref.sizeBytes, version: ref.version };
@@ -371,10 +377,14 @@ export const lookupDownloadRefInternal = internalQuery({
 
 /** Explicit manual delete of one generation. */
 export const deleteSave = mutation({
-  args: { nameKey: v.string(), version: v.number() },
+  args: {
+    authSubject: v.optional(v.string()),
+    nameKey: v.string(),
+    version: v.number(),
+  },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const user = await userBySubject(ctx);
+    const user = await userBySubject(ctx, args.authSubject);
     const game = await ctx.db
       .query("games")
       .withIndex("by_user_and_name", (q) =>

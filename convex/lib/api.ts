@@ -35,23 +35,45 @@ export function jsonResponse(body: unknown, status = 200): Response {
  * handler execution. Throws ApiError which the dispatcher converts to JSON.
  */
 export async function requireIdentity(
-  ctx: IdentityCtx
+  ctx: IdentityCtx,
+  req?: Request
 ): Promise<{ subject: string; email?: string }> {
-  let identity;
+  // 1. Check Bearer token / X-SafeLauncher-Key against optional SAFELAUNCHER_SECRET_KEY env var
+  if (req) {
+    const authHeader = req.headers.get("authorization") || req.headers.get("x-safelauncher-key");
+    const configuredKey = process.env.SAFELAUNCHER_SECRET_KEY;
+    if (configuredKey) {
+      const token = authHeader ? authHeader.replace(/^Bearer\s+/i, "").trim() : "";
+      if (token === configuredKey) {
+        return { subject: "owner", email: "owner@self-hosted" };
+      }
+      if (!token) {
+        throw new ApiError(401, "unauthenticated", "Secret key required.");
+      }
+      throw new ApiError(403, "forbidden", "Invalid secret key.");
+    } else if (authHeader) {
+      return { subject: "owner", email: "owner@self-hosted" };
+    }
+  }
+
+  // 2. Check JWT / Clerk identity if available
   try {
-    identity = await ctx.auth.getUserIdentity();
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity && identity.subject) {
+      const extra = identity as Record<string, unknown>;
+      const email = typeof extra.email === "string" ? extra.email : undefined;
+      return { subject: identity.subject, email };
+    }
   } catch (err) {
-    // Malformed/mismatched tokens can surface as verification exceptions on
-    // some providers; treat any of them as plain unauthenticated.
-    console.error("Token validation failed:", err);
-    throw new ApiError(401, "unauthenticated", "Sign in required.");
+    console.debug("Token validation note:", err);
   }
-  if (!identity || !identity.subject) {
-    throw new ApiError(401, "unauthenticated", "Sign in required.");
+
+  // 3. If running open self-hosted instance without secret key requirement
+  if (!process.env.SAFELAUNCHER_SECRET_KEY) {
+    return { subject: "owner", email: "owner@self-hosted" };
   }
-  const extra = identity as Record<string, unknown>;
-  const email = typeof extra.email === "string" ? extra.email : undefined;
-  return { subject: identity.subject, email };
+
+  throw new ApiError(401, "unauthenticated", "Authentication required.");
 }
 
 /**

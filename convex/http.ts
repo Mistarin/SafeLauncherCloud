@@ -42,20 +42,19 @@ const routes: RouteDef[] = [
   {
     method: "GET",
     pattern: /^\/api\/me$/,
-    handler: async (ctx) => {
-      const identity = await requireIdentity(ctx);
-      await ctx.runMutation(api.users.getOrCreateUser, {});
-      void identity;
-      const overview = await ctx.runQuery(api.users.accountOverview, {});
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      await ctx.runMutation(api.users.getOrCreateUser, { authSubject: identity.subject });
+      const overview = await ctx.runQuery(api.users.accountOverview, { authSubject: identity.subject });
       return jsonResponse(overview);
     },
   },
   {
     method: "GET",
     pattern: /^\/api\/key$/,
-    handler: async (ctx) => {
-      await requireIdentity(ctx);
-      const { dataKeyB64 } = await ctx.runMutation(api.users.ensureDataKey, {});
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const { dataKeyB64 } = await ctx.runMutation(api.users.ensureDataKey, { authSubject: identity.subject });
       return jsonResponse({ dataKeyB64 });
     },
   },
@@ -64,9 +63,9 @@ const routes: RouteDef[] = [
   {
     method: "GET",
     pattern: /^\/api\/games$/,
-    handler: async (ctx) => {
-      await requireIdentity(ctx);
-      const listing = await ctx.runQuery(api.saves.listGames, {});
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const listing = await ctx.runQuery(api.saves.listGames, { authSubject: identity.subject });
       return jsonResponse(listing);
     },
   },
@@ -74,9 +73,10 @@ const routes: RouteDef[] = [
     method: "POST",
     pattern: /^\/api\/games\/([^/]+)\/init-upload$/,
     handler: async (ctx, req, params) => {
-      await requireIdentity(ctx);
+      const identity = await requireIdentity(ctx, req);
       const body = await readJsonBody(req);
       const result = await ctx.runMutation(api.saves.requestUpload, {
+        authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         displayName: typeof body.displayName === "string" ? body.displayName : params.nameKey,
         plainSha256: String(body.plainSha256 ?? ""),
@@ -90,12 +90,13 @@ const routes: RouteDef[] = [
     method: "POST",
     pattern: /^\/api\/games\/([^/]+)\/confirm-upload$/,
     handler: async (ctx, req, params) => {
-      await requireIdentity(ctx);
+      const identity = await requireIdentity(ctx, req);
       const body = await readJsonBody(req);
       if (typeof body.saveId !== "string" || typeof body.storageId !== "string") {
         throw new ApiError(400, "missing_field", "saveId and storageId are required.");
       }
       const result = await ctx.runMutation(api.saves.confirmUpload, {
+        authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         saveId: body.saveId as never,
         storageId: body.storageId as never,
@@ -107,10 +108,11 @@ const routes: RouteDef[] = [
     method: "GET",
     pattern: /^\/api\/games\/([^/]+)\/download$/,
     handler: async (ctx, req, params) => {
-      await requireIdentity(ctx);
+      const identity = await requireIdentity(ctx, req);
       const url = new URL(req.url);
       const versionParam = url.searchParams.get("version");
       const ref = await ctx.runAction(api.saves.resolveDownload, {
+        authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         version:
           versionParam === null || versionParam === ""
@@ -127,9 +129,10 @@ const routes: RouteDef[] = [
     method: "DELETE",
     pattern: /^\/api\/games\/([^/]+)$/,
     handler: async (ctx, req, params) => {
-      await requireIdentity(ctx);
+      const identity = await requireIdentity(ctx, req);
       const body = await readJsonBody(req);
       const ok = await ctx.runMutation(api.saves.deleteSave, {
+        authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         version: argNumber(body, "version"),
       });

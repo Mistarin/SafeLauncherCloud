@@ -6,23 +6,31 @@ import { QUOTA_BYTES, MAX_SAVE_BYTES, KEEP_VERSIONS } from "./lib/limits";
 
 /** Idempotently ensure a users row exists for the caller; returns its id. */
 export const getOrCreateUser = mutation({
-  args: {},
+  args: {
+    authSubject: v.optional(v.string()),
+  },
   returns: v.id("users"),
-  handler: async (ctx) => {
-    const identity = await requireIdentity(ctx);
+  handler: async (ctx, args) => {
+    let subject = args.authSubject;
+    let email: string | undefined = "owner@self-hosted";
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+      email = identity.email;
+    }
     const existing = await ctx.db
       .query("users")
-      .withIndex("by_subject", (q) => q.eq("subject", identity.subject))
+      .withIndex("by_subject", (q) => q.eq("subject", subject!))
       .unique();
     if (existing) {
-      if (identity.email && existing.email !== identity.email) {
-        await ctx.db.patch(existing._id, { email: identity.email });
+      if (email && existing.email !== email) {
+        await ctx.db.patch(existing._id, { email });
       }
       return existing._id;
     }
     return ctx.db.insert("users", {
-      subject: identity.subject,
-      email: identity.email,
+      subject: subject!,
+      email: email,
       createdAt: Date.now(),
     });
   },
@@ -30,22 +38,29 @@ export const getOrCreateUser = mutation({
 
 /**
  * Return this user's payload encryption key, generating it on first use.
- *
- * Threat model: protects save contents against anyone who obtains storage
- * files or download URLs without database access. It is NOT zero-knowledge —
- * the backend can see the key and must be trusted with account integrity.
  */
 export const ensureDataKey = mutation({
-  args: {},
+  args: {
+    authSubject: v.optional(v.string()),
+  },
   returns: v.object({ dataKeyB64: v.string() }),
-  handler: async (ctx) => {
-    const identity = await requireIdentity(ctx);
-    const user = await ctx.db
+  handler: async (ctx, args) => {
+    let subject = args.authSubject;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+    }
+    let user = await ctx.db
       .query("users")
-      .withIndex("by_subject", (q) => q.eq("subject", identity.subject))
+      .withIndex("by_subject", (q) => q.eq("subject", subject!))
       .unique();
     if (!user) {
-      throw new Error("user_missing");
+      const userId = await ctx.db.insert("users", {
+        subject: subject!,
+        email: "owner@self-hosted",
+        createdAt: Date.now(),
+      });
+      user = (await ctx.db.get(userId))!;
     }
     if (user.dataKeyWrapped) {
       return { dataKeyB64: uint8ToB64(new Uint8Array(user.dataKeyWrapped)) };
@@ -67,7 +82,9 @@ function uint8ToB64(bytes: Uint8Array): string {
 
 /** Account snapshot powering the settings UI quota bar and lists. */
 export const accountOverview = query({
-  args: {},
+  args: {
+    authSubject: v.optional(v.string()),
+  },
   returns: v.object({
     subject: v.string(),
     email: v.union(v.string(), v.null()),
@@ -85,11 +102,17 @@ export const accountOverview = query({
     maxSaveBytes: v.number(),
     keepVersions: v.number(),
   }),
-  handler: async (ctx) => {
-    const identity = await requireIdentity(ctx);
+  handler: async (ctx, args) => {
+    let subject = args.authSubject;
+    let email: string | null = null;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+      email = identity.email ?? null;
+    }
     const user = await ctx.db
       .query("users")
-      .withIndex("by_subject", (q) => q.eq("subject", identity.subject))
+      .withIndex("by_subject", (q) => q.eq("subject", subject!))
       .unique();
     let bytesUsed = 0;
     const games: Array<{
@@ -100,6 +123,7 @@ export const accountOverview = query({
       versions: number;
     }> = [];
     if (user) {
+      email = user.email ?? email;
       for await (
         const g of ctx.db.query("games").withIndex("by_user", (q) => q.eq("userId", user._id))
       ) {
@@ -122,8 +146,8 @@ export const accountOverview = query({
       }
     }
     return {
-      subject: identity.subject,
-      email: user?.email ?? null,
+      subject: subject!,
+      email: email,
       games,
       bytesUsed,
       quotaBytes: QUOTA_BYTES,

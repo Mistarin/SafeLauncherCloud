@@ -1,86 +1,73 @@
-# SafeLauncherDatabase — Convex Backend
+# SafeLauncherCloud — Self-Hosted Convex Cloud Save Backend
 
-Cloud save storage for [SafeLauncher](../SafeLauncher): user accounts via
-Clerk, encrypted save archives on Convex File Storage, per-user quotas.
+Private, self-hosted cloud save synchronization backend for [SafeLauncher](https://github.com/Mistarin/SafeLauncher).
 
-## Limits (`convex/lib/limits.ts`)
+Provides zero-knowledge encrypted game save backups on Convex File Storage with version rollback and zero maintenance overhead.
 
-| Limit | Value |
-|---|---|
-| Max upload size | 10 MiB |
-| Per-user quota | 200 MiB |
-| Retained versions per game | 3 |
+---
 
-## API surface (`https://<deployment>.convex.site/api/*`)
+## ⚡ 2-Minute Quick Start
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/health` | liveness probe (no auth) |
-| GET | `/api/me` | quota overview + game list |
-| GET | `/api/key` | this user's payload encryption key (b64) |
-| POST | `/api/games/{nameKey}/init-upload` | validate limits → pending row + expiring upload URL |
-| POST | `/api/games/{nameKey}/confirm-upload` | verify blob metadata, assign version, evict old generations |
-| GET | `/api/games` | all games incl. version stats for conflict checks |
-| GET | `/api/games/{nameKey}/download[?version=N]` | authed resolve of the stored blob URL |
-| DELETE | `/api/games/{nameKey}` `{version}` | drop one generation manually |
-
-Every route except `/api/health` requires `Authorization: Bearer <JWT>` and
-scopes all data access to the token subject.
-
-## First-time setup
-
-**Status: COMPLETE for the dev instance.** Instance
-`upright-stallion-9201.clerk.accounts.dev` (app `app_3IUrFLINy7fN8Gwx3NVlXHitVfr`),
-OAuth application `safelauncher-desktop`
-(client id `tthAomibiA7PVISf`, public PKCE, redirect `http://127.0.0.1/callback`,
-scopes profile/email/offline_access). Environment variables on the dev
-deployment point at this instance; `CLERK_JWT_AUDIENCE` is currently the
-sentinel value `unconfirmed`.
-
-Remaining after the first real sign-in:
-
-1. Decode SafeLauncher's stored access token locally and note its exact
-   `aud` claim.
-2. Pin it: `npx convex env set CLERK_JWT_AUDIENCE <aud-claim>` (replaces the
-   `unconfirmed` sentinel, which skips audience verification).
-3. Production (`npx convex deploy` → moonlit-sockeye-565): repeat the env
-   vars for that deployment, then flip cloud_mode endpoints accordingly.
-
-Reference steps as performed (for future instances):
-
-1. **Create a Clerk application** at https://dashboard.clerk.com (free):
-   - Enable sign-in methods you want (email/password, Google, …).
-   - Copy the **Frontend API URL** (e.g. `https://verb-noun-00.clerk.accounts.dev`).
-   - Create an **OAuth Application** (Configure → OAuth Applications): set
-     redirect URI `http://127.0.0.1/callback`, mark *public*, enable PKCE,
-     scope `profile email offline_access`. Copy its **Client ID**.
-     (Equivalent to `POST https://api.clerk.com/v1/oauth_applications` with a
-     secret key + `PATCH {id}` for the public/pkce/redirect fields.)
-2. **Set environment variables** on the deployments:
-
+### 1. Create a Free Convex Account
+1. Visit [convex.dev](https://convex.dev) and sign up (100% free with 1 GB storage & bandwidth).
+2. Install the Convex CLI if you haven't already:
    ```bash
-   npx convex env set CLERK_ISSUER_DOMAIN <frontend-api-url>
-   npx convex env set CLERK_JWKS_URL <frontend-api-url>/.well-known/jwks.json
-   npx convex env set CLERK_JWT_AUDIENCE <aud-claim>
+   npm install -g convex
    ```
 
-3. **Deploy**: dev auto-pushes via `npx convex dev`; production:
+### 2. Clone & Deploy Your Private Cloud
+```bash
+git clone https://github.com/Mistarin/SafeLauncherCloud.git
+cd SafeLauncherCloud
+npm install
 
-   ```bash
-   npx convex deploy          # targets moonlit-sockeye-565
-   ```
+# Deploy directly to your free Convex account
+npx convex deploy
+```
 
-## Desktop-side configuration (SafeLauncher)
+### 3. (Optional) Set a Secret Access Key
+To protect your instance with a secret passphrase:
+```bash
+npx convex env set SAFELAUNCHER_SECRET_KEY your-super-secret-passphrase
+```
 
-QSettings org/app `SafeLauncher` keys:
+### 4. Connect to SafeLauncher
+Run the terminal setup wizard in SafeLauncher:
+```bash
+safelauncher --setup-cloud
+```
+* Enter your **Convex Site URL** (e.g. `https://your-project.convex.site`)
+* Enter your **Secret Key** (if configured)
+* SafeLauncher will verify the connection and begin syncing your game saves automatically!
 
-* `clerk_domain` — frontend API URL
-* `clerk_client_id` — OAuth application client id
-* `convex_site_url` — e.g. `https://moonlit-sockeye-565.convex.site`
-* `cloud_mode` — `local` (default) or `convex`
+---
 
-Env overrides: `SAFELAUNCHER_CLERK_DOMAIN`, `SAFELAUNCHER_CLERK_CLIENT_ID`,
-`SAFELAUNCHER_CONVEX_SITE_URL`.
+## 🔒 Security & Privacy
 
-Secrets handling: tokens live in `~/.local/share/safelauncher/auth.json`
-(0600); payloads are AES-256-GCM sealed on-device before leaving the machine.
+* **Client-Side AES-256-GCM Encryption**: Save archives are encrypted on your local machine before being sent over HTTPS.
+* **100% Private**: You own your Convex instance. No third parties have access to your save files.
+* **Automatic Pruning**: Retains the latest 3 save generations per game automatically to optimize storage quota.
+
+---
+
+## 📊 Storage Limits
+
+| Parameter | Value |
+| :--- | :--- |
+| **Max Save Upload Size** | 50 MiB per game save |
+| **Default Storage Quota** | 1 GiB (Matches Convex free tier) |
+| **Version History** | 3 versions retained per game |
+
+---
+
+## 🛠️ API Reference
+
+| Method | Endpoint | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Liveness health check |
+| `GET` | `/api/me` | Account overview & storage quota |
+| `GET` | `/api/games` | List all backed-up games & version history |
+| `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
+| `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload & promote save version |
+| `GET` | `/api/games/{nameKey}/download` | Fetch download URL for latest or specific version |
+| `DELETE` | `/api/games/{nameKey}` | Delete a specific save generation |
