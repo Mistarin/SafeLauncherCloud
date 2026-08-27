@@ -1,0 +1,17 @@
+{
+  "name": "safelauncher-database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Convex backend powering SafeLauncher cloud saves (accounts, quotas, encrypted save storage)",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy"
+  },
+  "dependencies": {
+    "convex": "^1.25.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "typescript": "^5.8.3"
+  }
+}
