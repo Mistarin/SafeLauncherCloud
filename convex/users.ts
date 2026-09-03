@@ -101,6 +101,17 @@ export const accountOverview = query({
     quotaBytes: v.number(),
     maxSaveBytes: v.number(),
     keepVersions: v.number(),
+    concurrentDevices: v.number(),
+    totalDevices: v.number(),
+    devices: v.array(
+      v.object({
+        deviceId: v.string(),
+        deviceName: v.string(),
+        platform: v.string(),
+        lastSeenAt: v.number(),
+        isOnline: v.boolean(),
+      })
+    ),
   }),
   handler: async (ctx, args) => {
     let subject = args.authSubject;
@@ -122,6 +133,14 @@ export const accountOverview = query({
       latestSourceMtime: number;
       versions: number;
     }> = [];
+    let devicesList: Array<{
+      deviceId: string;
+      deviceName: string;
+      platform: string;
+      lastSeenAt: number;
+      isOnline: boolean;
+    }> = [];
+
     if (user) {
       email = user.email ?? email;
       for await (
@@ -144,7 +163,25 @@ export const accountOverview = query({
           versions: versionCount,
         });
       }
+
+      const now = Date.now();
+      const onlineThreshold = now - 15 * 60 * 1000;
+      const allDevices = await ctx.db
+        .query("devices")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .collect();
+
+      devicesList = allDevices.map((d) => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        platform: d.platform,
+        lastSeenAt: d.lastSeenAt,
+        isOnline: d.lastSeenAt >= onlineThreshold,
+      }));
     }
+
+    const concurrentDevices = devicesList.filter((d) => d.isOnline).length;
+
     return {
       subject: subject!,
       email: email,
@@ -153,6 +190,82 @@ export const accountOverview = query({
       quotaBytes: QUOTA_BYTES,
       maxSaveBytes: MAX_SAVE_BYTES,
       keepVersions: KEEP_VERSIONS,
+      concurrentDevices,
+      totalDevices: devicesList.length,
+      devices: devicesList,
     };
+  },
+});
+
+/** Heartbeat and register a connected device */
+export const heartbeatDevice = mutation({
+  args: {
+    deviceId: v.string(),
+    deviceName: v.string(),
+    platform: v.optional(v.string()),
+    authSubject: v.optional(v.string()),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    concurrentDevices: v.number(),
+    devices: v.array(
+      v.object({
+        deviceId: v.string(),
+        deviceName: v.string(),
+        platform: v.string(),
+        lastSeenAt: v.number(),
+        isOnline: v.boolean(),
+      })
+    ),
+  }),
+  handler: async (ctx, args) => {
+    let subject = args.authSubject;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+    }
+    const user = await getOrCreateUser(ctx, subject!);
+    const now = Date.now();
+
+    const existingDevice = await ctx.db
+      .query("devices")
+      .withIndex("by_user_device", (q) =>
+        q.eq("userId", user._id).eq("deviceId", args.deviceId)
+      )
+      .unique();
+
+    if (existingDevice) {
+      await ctx.db.patch(existingDevice._id, {
+        deviceName: args.deviceName,
+        platform: args.platform ?? existingDevice.platform,
+        lastSeenAt: now,
+      });
+    } else {
+      await ctx.db.insert("devices", {
+        userId: user._id,
+        deviceId: args.deviceId,
+        deviceName: args.deviceName,
+        platform: args.platform ?? "Linux",
+        lastSeenAt: now,
+        createdAt: now,
+      });
+    }
+
+    const onlineThreshold = now - 15 * 60 * 1000;
+    const allDevices = await ctx.db
+      .query("devices")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const devicesList = allDevices.map((d) => ({
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      platform: d.platform,
+      lastSeenAt: d.lastSeenAt,
+      isOnline: d.lastSeenAt >= onlineThreshold,
+    }));
+
+    const concurrentDevices = devicesList.filter((d) => d.isOnline).length;
+    return { ok: true, concurrentDevices, devices: devicesList };
   },
 });

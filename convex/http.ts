@@ -45,8 +45,37 @@ const routes: RouteDef[] = [
     handler: async (ctx, req) => {
       const identity = await requireIdentity(ctx, req);
       await ctx.runMutation(api.users.getOrCreateUser, { authSubject: identity.subject });
+      const deviceId = req.headers.get("X-SafeLauncher-Device-Id");
+      const deviceName = req.headers.get("X-SafeLauncher-Device-Name");
+      const platform = req.headers.get("X-SafeLauncher-Platform");
+      if (deviceId && deviceName) {
+        await ctx.runMutation(api.users.heartbeatDevice, {
+          authSubject: identity.subject,
+          deviceId,
+          deviceName,
+          platform: platform ?? "Linux",
+        });
+      }
       const overview = await ctx.runQuery(api.users.accountOverview, { authSubject: identity.subject });
       return jsonResponse(overview);
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/heartbeat$/,
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const body = await readJsonBody(req);
+      const deviceId = String(body.deviceId || req.headers.get("X-SafeLauncher-Device-Id") || "unknown");
+      const deviceName = String(body.deviceName || req.headers.get("X-SafeLauncher-Device-Name") || "Desktop");
+      const platform = String(body.platform || req.headers.get("X-SafeLauncher-Platform") || "Linux");
+      const res = await ctx.runMutation(api.users.heartbeatDevice, {
+        authSubject: identity.subject,
+        deviceId,
+        deviceName,
+        platform,
+      });
+      return jsonResponse(res);
     },
   },
   {

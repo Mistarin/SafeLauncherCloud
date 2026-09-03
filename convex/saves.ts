@@ -414,7 +414,7 @@ export const deleteSave = mutation({
       }
       await ctx.db.patch(game._id, {
         totalBytes,
-        latestSourceMtime: latestSourceMtime || Date.now(),
+        latestSourceMtime: latestSourceMtime,
       });
     }
     return removed;

@@ -48,4 +48,15 @@ export default defineSchema({
     .index("by_game_version", ["gameId", "version"])
     .index("by_user", ["userId"])
     .index("by_state_created", ["state", "createdAt"]),
+
+  devices: defineTable({
+    userId: v.id("users"),
+    deviceId: v.string(),
+    deviceName: v.string(),
+    platform: v.string(),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_device", ["userId", "deviceId"]),
 });

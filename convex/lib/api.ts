@@ -1,13 +1,5 @@
 /** Shared helpers for the save API: JSON replies, auth guard, name keys. */
 
-interface IdentityCtx {
-  auth: {
-    getUserIdentity: () => Promise<{
-      subject?: string;
-      tokenIdentifier?: string;
-    } | null>;
-  };
-}
 
 export class ApiError extends Error {
   constructor(
@@ -30,50 +22,38 @@ export function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function constantTimeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
 /**
- * Identity accessor used by every route wrapper: no valid token means no
- * handler execution. Throws ApiError which the dispatcher converts to JSON.
+ * Identity accessor: verifies the private server secret key if configured in Convex env,
+ * otherwise treats requests as the server owner.
  */
 export async function requireIdentity(
-  ctx: IdentityCtx,
+  _ctx: unknown,
   req?: Request
 ): Promise<{ subject: string; email?: string }> {
-  // 1. Check Bearer token / X-SafeLauncher-Key against optional SAFELAUNCHER_SECRET_KEY env var
-  if (req) {
-    const authHeader = req.headers.get("authorization") || req.headers.get("x-safelauncher-key");
-    const configuredKey = process.env.SAFELAUNCHER_SECRET_KEY;
-    if (configuredKey) {
-      const token = authHeader ? authHeader.replace(/^Bearer\s+/i, "").trim() : "";
-      if (token === configuredKey) {
-        return { subject: "owner", email: "owner@self-hosted" };
-      }
-      if (!token) {
-        throw new ApiError(401, "unauthenticated", "Secret key required.");
-      }
-      throw new ApiError(403, "forbidden", "Invalid secret key.");
-    } else if (authHeader) {
-      return { subject: "owner", email: "owner@self-hosted" };
+  const configuredKey = process.env.SAFELAUNCHER_SECRET_KEY;
+  if (configuredKey) {
+    if (!req) {
+      throw new ApiError(401, "unauthenticated", "Secret key required.");
     }
-  }
-
-  // 2. Check JWT / Clerk identity if available
-  try {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity && identity.subject) {
-      const extra = identity as Record<string, unknown>;
-      const email = typeof extra.email === "string" ? extra.email : undefined;
-      return { subject: identity.subject, email };
+    const authHeader = req.headers.get("authorization") || req.headers.get("x-safelauncher-key") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token || !constantTimeCompare(token, configuredKey)) {
+      throw new ApiError(401, "unauthenticated", "Invalid or missing secret key.");
     }
-  } catch (err) {
-    console.debug("Token validation note:", err);
-  }
-
-  // 3. If running open self-hosted instance without secret key requirement
-  if (!process.env.SAFELAUNCHER_SECRET_KEY) {
     return { subject: "owner", email: "owner@self-hosted" };
   }
 
-  throw new ApiError(401, "unauthenticated", "Authentication required.");
+  // Personal private deployment without pre-shared secret requirement
+  return { subject: "owner", email: "owner@self-hosted" };
 }
 
 /**
