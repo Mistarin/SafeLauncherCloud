@@ -17,4 +17,4 @@ export const MAX_UPLOADS_PER_DAY = 1000;
 /** Backend protocol version reported by /api/health; bumped with any
  *  client-visible API change. The client (core/version.py) compares this
  *  against MIN_CONVEX_BACKEND_VERSION to flag outdated deployments. */
-export const BACKEND_VERSION = "1.2.0";
+export const BACKEND_VERSION = "1.3.0";
