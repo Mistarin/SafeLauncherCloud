@@ -184,13 +184,15 @@ export const accountOverview = query({
         .withIndex("by_user", (q) => q.eq("userId", user._id))
         .collect();
 
-      devicesList = allDevices.map((d) => ({
-        deviceId: d.deviceId,
-        deviceName: d.deviceName,
-        platform: d.platform,
-        lastSeenAt: d.lastSeenAt,
-        isOnline: d.lastSeenAt >= onlineThreshold,
-      }));
+      devicesList = allDevices
+        .filter((d) => d.revokedAt === undefined)
+        .map((d) => ({
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+          platform: d.platform,
+          lastSeenAt: d.lastSeenAt,
+          isOnline: d.lastSeenAt >= onlineThreshold,
+        }));
     }
 
     const concurrentDevices = devicesList.filter((d) => d.isOnline).length;
@@ -248,6 +250,29 @@ export const heartbeatDevice = mutation({
       .unique();
 
     if (existingDevice) {
+      if (existingDevice.revokedAt !== undefined) {
+        // Revoked devices must not resurrect themselves via heartbeats and
+        // stay out of the device lists. Sync calls with the shared secret
+        // keep working; true access revocation requires rotating the key.
+        const all = await ctx.db
+          .query("devices")
+          .withIndex("by_user", (q) => q.eq("userId", userId))
+          .collect();
+        const live = all.filter((d) => d.revokedAt === undefined);
+        const threshold = Date.now() - 15 * 60 * 1000;
+        const devicesList = live.map((d) => ({
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+          platform: d.platform,
+          lastSeenAt: d.lastSeenAt,
+          isOnline: d.lastSeenAt >= threshold,
+        }));
+        return {
+          ok: false,
+          concurrentDevices: devicesList.filter((d) => d.isOnline).length,
+          devices: devicesList,
+        };
+      }
       await ctx.db.patch(existingDevice._id, {
         deviceName: args.deviceName,
         platform: args.platform ?? existingDevice.platform,
@@ -270,7 +295,8 @@ export const heartbeatDevice = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    const devicesList = allDevices.map((d) => ({
+    const liveDevices = allDevices.filter((d) => d.revokedAt === undefined);
+    const devicesList = liveDevices.map((d) => ({
       deviceId: d.deviceId,
       deviceName: d.deviceName,
       platform: d.platform,
@@ -280,5 +306,34 @@ export const heartbeatDevice = mutation({
 
     const concurrentDevices = devicesList.filter((d) => d.isOnline).length;
     return { ok: true, concurrentDevices, devices: devicesList };
+  },
+});
+
+/** Owner revocation of a device: soft-delete so its heartbeats cannot
+ *  resurrect it. Returns true when the device exists and is revoked. */
+export const revokeDevice = mutation({
+  args: {
+    authSubject: v.optional(v.string()),
+    deviceId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    let subject = args.authSubject;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+    }
+    const userId = await ensureUserRow(ctx, subject!);
+    const device = await ctx.db
+      .query("devices")
+      .withIndex("by_user_device", (q) =>
+        q.eq("userId", userId).eq("deviceId", args.deviceId)
+      )
+      .unique();
+    if (!device) return false;
+    if (device.revokedAt === undefined) {
+      await ctx.db.patch(device._id, { revokedAt: Date.now() });
+    }
+    return true;
   },
 });

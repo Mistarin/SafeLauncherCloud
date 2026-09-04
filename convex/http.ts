@@ -156,6 +156,22 @@ const routes: RouteDef[] = [
   },
   {
     method: "DELETE",
+    pattern: /^\/api\/devices$/,
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const body = await readJsonBody(req);
+      if (typeof body.deviceId !== "string" || !body.deviceId) {
+        throw new ApiError(400, "missing_field", "deviceId is required.");
+      }
+      const revoked = await ctx.runMutation(api.users.revokeDevice, {
+        authSubject: identity.subject,
+        deviceId: body.deviceId,
+      });
+      return jsonResponse({ revoked });
+    },
+  },
+  {
+    method: "DELETE",
     pattern: /^\/api\/games\/([^/]+)$/,
     handler: async (ctx, req, params) => {
       const identity = await requireIdentity(ctx, req);

@@ -56,6 +56,9 @@ export default defineSchema({
     platform: v.string(),
     lastSeenAt: v.number(),
     createdAt: v.number(),
+    /** Set when the owner revokes the device; heartbeats can no longer
+     *  resurrect it and it is excluded from device counts and listings. */
+    revokedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_user_device", ["userId", "deviceId"]),
