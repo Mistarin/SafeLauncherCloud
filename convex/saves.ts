@@ -10,7 +10,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, ApiError } from "./lib/api";
+import { requireIdentity, ApiError, isValidNameKey } from "./lib/api";
 import { MAX_SAVE_BYTES, QUOTA_BYTES, KEEP_VERSIONS } from "./lib/limits";
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
@@ -70,6 +70,10 @@ export const requestUpload = mutation({
     if (args.declaredSizeBytes <= 0 || args.declaredSizeBytes > MAX_SAVE_BYTES) {
       throw new ApiError(413, "save_too_large",
         `Save must be between 1 byte and ${MAX_SAVE_BYTES} bytes.`);
+    }
+    if (!isValidNameKey(args.nameKey)) {
+      throw new ApiError(400, "bad_name_key",
+        "nameKey must be 1-128 canonical [A-Za-z0-9-_ ] characters (client-sanitized).");
     }
     if (!/^[0-9a-f]{64}$/.test(args.plainSha256)) {
       throw new ApiError(400, "bad_hash", "plainSha256 must be lowercase hex sha256.");

@@ -57,9 +57,11 @@ export async function requireIdentity(
 }
 
 /**
- * Mirror of the local engine's game-name sanitization
- * (core/cloud_save_sync.py get_cloud_save_path): keep [A-Za-z0-9-_ space].
- * Both sides therefore address the same namespace key.
+ * Game-name namespace keys are computed by the client
+ * (core/cloud_backend.py normalize_name_key): [A-Za-z0-9-_ space] with a
+ * short sha256(raw-name) suffix whenever sanitization would drop characters,
+ * so distinct game names can never collide. The client sends final keys;
+ * this server mirror validates the charset rather than re-deriving keys.
  */
 export function sanitizeNameKey(gameName: string): string {
   const cleaned = Array.from(gameName)
@@ -73,6 +75,11 @@ export function sanitizeNameKey(gameName: string): string {
     throw new ApiError(400, "invalid_name", "Game name key too long.");
   }
   return cleaned;
+}
+
+/** True when a client-supplied nameKey is already in the canonical charset. */
+export function isValidNameKey(nameKey: string): boolean {
+  return /^[A-Za-z0-9\-_ ]{1,128}$/.test(nameKey) && nameKey === nameKey.trim() && nameKey.length > 0;
 }
 
 export type ParsedBody = Record<string, unknown>;
