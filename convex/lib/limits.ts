@@ -13,3 +13,8 @@ export const KEEP_VERSIONS = 2;
 
 /** Minimum milliseconds between unauthenticated health spam checks. */
 export const MAX_UPLOADS_PER_DAY = 1000;
+
+/** Backend protocol version reported by /api/health; bumped with any
+ *  client-visible API change. The client (core/version.py) compares this
+ *  against MIN_CONVEX_BACKEND_VERSION to flag outdated deployments. */
+export const BACKEND_VERSION = "1.2.0";

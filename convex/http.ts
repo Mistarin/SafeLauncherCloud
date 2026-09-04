@@ -10,6 +10,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
+import { BACKEND_VERSION } from "./lib/limits";
 import {
   ApiError,
   jsonResponse,
@@ -25,7 +26,7 @@ http.route({
   path: "/api/health",
   method: "GET",
   handler: httpAction(async () =>
-    jsonResponse({ ok: true, service: "safelauncher-cloud-saves" })
+    jsonResponse({ ok: true, service: "safelauncher-cloud-saves", version: BACKEND_VERSION })
   ),
 });
 
