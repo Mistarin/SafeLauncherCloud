@@ -1,8 +1,35 @@
 /** User provisioning and account/quota overview. */
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { requireIdentity } from "./lib/api";
 import { QUOTA_BYTES, MAX_SAVE_BYTES, KEEP_VERSIONS } from "./lib/limits";
+
+/** Idempotently ensure a users row exists for the subject; returns its id.
+ *  Plain helper so other mutations can call it directly (registered
+ *  mutations are not callable as functions). */
+async function ensureUserRow(
+  ctx: MutationCtx,
+  subject: string,
+  email: string = "owner@self-hosted"
+): Promise<Id<"users">> {
+  const existing = await ctx.db
+    .query("users")
+    .withIndex("by_subject", (q) => q.eq("subject", subject))
+    .unique();
+  if (existing) {
+    if (email && existing.email !== email) {
+      await ctx.db.patch(existing._id, { email });
+    }
+    return existing._id;
+  }
+  return ctx.db.insert("users", {
+    subject,
+    email,
+    createdAt: Date.now(),
+  });
+}
 
 /** Idempotently ensure a users row exists for the caller; returns its id. */
 export const getOrCreateUser = mutation({
@@ -18,21 +45,7 @@ export const getOrCreateUser = mutation({
       subject = identity.subject;
       email = identity.email;
     }
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_subject", (q) => q.eq("subject", subject!))
-      .unique();
-    if (existing) {
-      if (email && existing.email !== email) {
-        await ctx.db.patch(existing._id, { email });
-      }
-      return existing._id;
-    }
-    return ctx.db.insert("users", {
-      subject: subject!,
-      email: email,
-      createdAt: Date.now(),
-    });
+    return ensureUserRow(ctx, subject!, email);
   },
 });
 
@@ -224,13 +237,13 @@ export const heartbeatDevice = mutation({
       const identity = await requireIdentity(ctx);
       subject = identity.subject;
     }
-    const user = await getOrCreateUser(ctx, subject!);
+    const userId = await ensureUserRow(ctx, subject!);
     const now = Date.now();
 
     const existingDevice = await ctx.db
       .query("devices")
       .withIndex("by_user_device", (q) =>
-        q.eq("userId", user._id).eq("deviceId", args.deviceId)
+        q.eq("userId", userId).eq("deviceId", args.deviceId)
       )
       .unique();
 
@@ -242,7 +255,7 @@ export const heartbeatDevice = mutation({
       });
     } else {
       await ctx.db.insert("devices", {
-        userId: user._id,
+        userId: userId,
         deviceId: args.deviceId,
         deviceName: args.deviceName,
         platform: args.platform ?? "Linux",
@@ -254,7 +267,7 @@ export const heartbeatDevice = mutation({
     const onlineThreshold = now - 15 * 60 * 1000;
     const allDevices = await ctx.db
       .query("devices")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
     const devicesList = allDevices.map((d) => ({

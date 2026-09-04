@@ -15,7 +15,7 @@ import { MAX_SAVE_BYTES, QUOTA_BYTES, KEEP_VERSIONS } from "./lib/limits";
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
-async function userBySubject(ctx: MutationCtx | QueryCtx, authSubject?: string) {
+async function userBySubject(ctx: MutationCtx, authSubject?: string) {
   let subject = authSubject;
   if (!subject) {
     const identity = await requireIdentity(ctx);
@@ -269,7 +269,20 @@ export const listGames = query({
     quotaBytes: v.number(),
   }),
   handler: async (ctx, args) => {
-    const user = await userBySubject(ctx, args.authSubject);
+    // Queries cannot provision (and must not write): resolve the user
+    // read-only and report an empty library until a mutation creates one.
+    let subject = args.authSubject;
+    if (!subject) {
+      const identity = await requireIdentity(ctx);
+      subject = identity.subject;
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_subject", (q) => q.eq("subject", subject!))
+      .unique();
+    if (!user) {
+      return { games: [], bytesUsed: 0, quotaBytes: QUOTA_BYTES };
+    }
     const out: Array<{
       nameKey: string; displayName: string; totalBytes: number;
       latestSourceMtime: number;
