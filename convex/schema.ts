@@ -49,6 +49,20 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_state_created", ["state", "createdAt"]),
 
+  /**
+   * Client-encrypted SafeLauncher-owned metadata. This is intentionally
+   * separate from game save archives so achievements/playtime can sync even
+   * when a game has no detectable save files.
+   */
+  metadata: defineTable({
+    userId: v.id("users"),
+    nameKey: v.string(),
+    appId: v.optional(v.string()),
+    data: v.string(),
+    revision: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user_and_name", ["userId", "nameKey"]),
+
   devices: defineTable({
     userId: v.id("users"),
     deviceId: v.string(),

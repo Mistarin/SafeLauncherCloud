@@ -100,6 +100,42 @@ const routes: RouteDef[] = [
     },
   },
   {
+    method: "GET",
+    pattern: /^\/api\/games\/([^/]+)\/metadata$/,
+    handler: async (ctx, req, params) => {
+      const identity = await requireIdentity(ctx, req);
+      const metadata = await ctx.runQuery(api.metadata.getMetadata, {
+        authSubject: identity.subject,
+        nameKey: decodeURIComponent(params.nameKey),
+      });
+      if (!metadata) return jsonResponse({ data: "", revision: 0, updatedAt: 0 });
+      return jsonResponse({
+        data: metadata.data,
+        revision: metadata.revision,
+        updatedAt: metadata.updatedAt,
+      });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/games\/([^/]+)\/metadata$/,
+    handler: async (ctx, req, params) => {
+      const identity = await requireIdentity(ctx, req);
+      const body = await readJsonBody(req);
+      if (typeof body.data !== "string" || !body.data) {
+        throw new ApiError(400, "missing_field", "data is required.");
+      }
+      const result = await ctx.runMutation(api.metadata.putMetadata, {
+        authSubject: identity.subject,
+        nameKey: decodeURIComponent(params.nameKey),
+        appId: typeof body.appId === "string" ? body.appId : undefined,
+        data: body.data,
+        revision: typeof body.revision === "number" ? body.revision : undefined,
+      });
+      return jsonResponse(result);
+    },
+  },
+  {
     method: "POST",
     pattern: /^\/api\/games\/([^/]+)\/init-upload$/,
     handler: async (ctx, req, params) => {
@@ -191,6 +227,11 @@ http.route({
   pathPrefix: "/api/",
   method: "POST",
   handler: httpAction(async (ctx, req) => dispatch("POST", ctx, req)),
+});
+http.route({
+  pathPrefix: "/api/",
+  method: "PUT",
+  handler: httpAction(async (ctx, req) => dispatch("PUT", ctx, req)),
 });
 http.route({
   pathPrefix: "/api/",

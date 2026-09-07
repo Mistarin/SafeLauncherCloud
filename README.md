@@ -66,7 +66,16 @@ safelauncher --setup-cloud
 | `GET` | `/api/health` | Liveness health check |
 | `GET` | `/api/me` | Account overview and storage quota |
 | `GET` | `/api/games` | List all backed-up games and version history |
+| `GET` | `/api/games/{nameKey}/metadata` | Fetch encrypted SafeLauncher-owned achievements/playtime metadata |
+| `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted metadata with optional revision check |
 | `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
 | `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload and promote save version |
 | `GET` | `/api/games/{nameKey}/download` | Fetch download URL for latest or specific version |
 | `DELETE` | `/api/games/{nameKey}` | Delete a specific save generation |
+
+Metadata is encrypted by the desktop client before upload and is stored in a
+separate table from game save archives. This allows achievements, playtime,
+and last-played state to synchronize even when no game save is detectable.
+The `PUT` endpoint accepts `{ data, revision?, appId? }`; a stale revision
+returns HTTP 409 with `code: "metadata_revision_conflict"` and the current
+revision so the client can merge and retry.
