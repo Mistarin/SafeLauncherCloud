@@ -32,27 +32,26 @@ function constantTimeCompare(a: string, b: string): boolean {
 }
 
 /**
- * Identity accessor: verifies the private server secret key if configured in Convex env,
- * otherwise treats requests as the server owner.
+ * Identity accessor for the private desktop HTTP API. The deployment must
+ * have a secret configured; an unset secret is a misconfiguration and must
+ * fail closed rather than turning the API into an anonymous owner endpoint.
  */
 export async function requireIdentity(
   _ctx: unknown,
   req?: Request
 ): Promise<{ subject: string; email?: string }> {
   const configuredKey = process.env.SAFELAUNCHER_SECRET_KEY;
-  if (configuredKey) {
-    if (!req) {
-      throw new ApiError(401, "unauthenticated", "Secret key required.");
-    }
-    const authHeader = req.headers.get("authorization") || req.headers.get("x-safelauncher-key") || "";
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (!token || !constantTimeCompare(token, configuredKey)) {
-      throw new ApiError(401, "unauthenticated", "Invalid or missing secret key.");
-    }
-    return { subject: "owner", email: "owner@self-hosted" };
+  if (!configuredKey) {
+    throw new ApiError(503, "backend_not_configured", "SAFELAUNCHER_SECRET_KEY is not configured.");
   }
-
-  // Personal private deployment without pre-shared secret requirement
+  if (!req) {
+    throw new ApiError(401, "unauthenticated", "Secret key required.");
+  }
+  const authHeader = req.headers.get("authorization") || req.headers.get("x-safelauncher-key") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token || !constantTimeCompare(token, configuredKey)) {
+    throw new ApiError(401, "unauthenticated", "Invalid or missing secret key.");
+  }
   return { subject: "owner", email: "owner@self-hosted" };
 }
 

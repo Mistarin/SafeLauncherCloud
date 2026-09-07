@@ -9,7 +9,7 @@
  */
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { BACKEND_VERSION } from "./lib/limits";
 import {
   ApiError,
@@ -45,19 +45,19 @@ const routes: RouteDef[] = [
     pattern: /^\/api\/me$/,
     handler: async (ctx, req) => {
       const identity = await requireIdentity(ctx, req);
-      await ctx.runMutation(api.users.getOrCreateUser, { authSubject: identity.subject });
+      await ctx.runMutation(internal.users.getOrCreateUser, { authSubject: identity.subject });
       const deviceId = req.headers.get("X-SafeLauncher-Device-Id");
       const deviceName = req.headers.get("X-SafeLauncher-Device-Name");
       const platform = req.headers.get("X-SafeLauncher-Platform");
       if (deviceId && deviceName) {
-        await ctx.runMutation(api.users.heartbeatDevice, {
+        await ctx.runMutation(internal.users.heartbeatDevice, {
           authSubject: identity.subject,
           deviceId,
           deviceName,
           platform: platform ?? "Linux",
         });
       }
-      const overview = await ctx.runQuery(api.users.accountOverview, { authSubject: identity.subject });
+      const overview = await ctx.runQuery(internal.users.accountOverview, { authSubject: identity.subject });
       return jsonResponse(overview);
     },
   },
@@ -70,7 +70,7 @@ const routes: RouteDef[] = [
       const deviceId = String(body.deviceId || req.headers.get("X-SafeLauncher-Device-Id") || "unknown");
       const deviceName = String(body.deviceName || req.headers.get("X-SafeLauncher-Device-Name") || "Desktop");
       const platform = String(body.platform || req.headers.get("X-SafeLauncher-Platform") || "Linux");
-      const res = await ctx.runMutation(api.users.heartbeatDevice, {
+      const res = await ctx.runMutation(internal.users.heartbeatDevice, {
         authSubject: identity.subject,
         deviceId,
         deviceName,
@@ -84,7 +84,7 @@ const routes: RouteDef[] = [
     pattern: /^\/api\/key$/,
     handler: async (ctx, req) => {
       const identity = await requireIdentity(ctx, req);
-      const { dataKeyB64 } = await ctx.runMutation(api.users.ensureDataKey, { authSubject: identity.subject });
+      const { dataKeyB64 } = await ctx.runMutation(internal.users.ensureDataKey, { authSubject: identity.subject });
       return jsonResponse({ dataKeyB64 });
     },
   },
@@ -95,7 +95,7 @@ const routes: RouteDef[] = [
     pattern: /^\/api\/games$/,
     handler: async (ctx, req) => {
       const identity = await requireIdentity(ctx, req);
-      const listing = await ctx.runQuery(api.saves.listGames, { authSubject: identity.subject });
+      const listing = await ctx.runQuery(internal.saves.listGames, { authSubject: identity.subject });
       return jsonResponse(listing);
     },
   },
@@ -104,7 +104,7 @@ const routes: RouteDef[] = [
     pattern: /^\/api\/games\/([^/]+)\/metadata$/,
     handler: async (ctx, req, params) => {
       const identity = await requireIdentity(ctx, req);
-      const metadata = await ctx.runQuery(api.metadata.getMetadata, {
+      const metadata = await ctx.runQuery(internal.metadata.getMetadata, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
       });
@@ -125,7 +125,7 @@ const routes: RouteDef[] = [
       if (typeof body.data !== "string" || !body.data) {
         throw new ApiError(400, "missing_field", "data is required.");
       }
-      const result = await ctx.runMutation(api.metadata.putMetadata, {
+      const result = await ctx.runMutation(internal.metadata.putMetadata, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         appId: typeof body.appId === "string" ? body.appId : undefined,
@@ -141,7 +141,7 @@ const routes: RouteDef[] = [
     handler: async (ctx, req, params) => {
       const identity = await requireIdentity(ctx, req);
       const body = await readJsonBody(req);
-      const result = await ctx.runMutation(api.saves.requestUpload, {
+      const result = await ctx.runMutation(internal.saves.requestUpload, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         displayName: typeof body.displayName === "string" ? body.displayName : params.nameKey,
@@ -161,7 +161,7 @@ const routes: RouteDef[] = [
       if (typeof body.saveId !== "string" || typeof body.storageId !== "string") {
         throw new ApiError(400, "missing_field", "saveId and storageId are required.");
       }
-      const result = await ctx.runMutation(api.saves.confirmUpload, {
+      const result = await ctx.runMutation(internal.saves.confirmUpload, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         saveId: body.saveId as never,
@@ -177,7 +177,7 @@ const routes: RouteDef[] = [
       const identity = await requireIdentity(ctx, req);
       const url = new URL(req.url);
       const versionParam = url.searchParams.get("version");
-      const ref = await ctx.runAction(api.saves.resolveDownload, {
+      const ref = await ctx.runAction(internal.saves.resolveDownload, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         version:
@@ -200,7 +200,7 @@ const routes: RouteDef[] = [
       if (typeof body.deviceId !== "string" || !body.deviceId) {
         throw new ApiError(400, "missing_field", "deviceId is required.");
       }
-      const revoked = await ctx.runMutation(api.users.revokeDevice, {
+      const revoked = await ctx.runMutation(internal.users.revokeDevice, {
         authSubject: identity.subject,
         deviceId: body.deviceId,
       });
@@ -209,11 +209,23 @@ const routes: RouteDef[] = [
   },
   {
     method: "DELETE",
+    pattern: /^\/api\/games\/([^/]+)\/metadata$/,
+    handler: async (ctx, req, params) => {
+      const identity = await requireIdentity(ctx, req);
+      const deleted = await ctx.runMutation(internal.metadata.deleteMetadata, {
+        authSubject: identity.subject,
+        nameKey: decodeURIComponent(params.nameKey),
+      });
+      return jsonResponse({ deleted });
+    },
+  },
+  {
+    method: "DELETE",
     pattern: /^\/api\/games\/([^/]+)$/,
     handler: async (ctx, req, params) => {
       const identity = await requireIdentity(ctx, req);
       const body = await readJsonBody(req);
-      const ok = await ctx.runMutation(api.saves.deleteSave, {
+      const ok = await ctx.runMutation(internal.saves.deleteSave, {
         authSubject: identity.subject,
         nameKey: decodeURIComponent(params.nameKey),
         version: argNumber(body, "version"),

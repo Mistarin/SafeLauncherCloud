@@ -25,8 +25,8 @@ npm install
 npx convex deploy
 ```
 
-### 3. (Optional) Set a secret access key
-To require a shared secret on API requests:
+### 3. Set the secret access key
+The API fails closed until a shared secret is configured:
 ```bash
 npx convex env set SAFELAUNCHER_SECRET_KEY your-secret-passphrase
 ```
@@ -44,7 +44,7 @@ safelauncher --setup-cloud
 ## Security and privacy
 
 * **Client-side AES-256-GCM encryption**: Save archives are encrypted locally before upload over HTTPS.
-* **Self-hosted**: You control the Convex deployment. No external service has access to decrypted save files.
+* **Self-hosted**: You control the Convex deployment. Save archives and launcher metadata are encrypted client-side before upload. The current account key-recovery design is not zero-knowledge: an administrator with database and deployment access can recover the account key.
 * **Automatic pruning**: Retains the 3 most recent save versions per game to stay within storage limits.
 
 ---
@@ -68,6 +68,7 @@ safelauncher --setup-cloud
 | `GET` | `/api/games` | List all backed-up games and version history |
 | `GET` | `/api/games/{nameKey}/metadata` | Fetch encrypted SafeLauncher-owned achievements/playtime metadata |
 | `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted metadata with optional revision check |
+| `DELETE` | `/api/games/{nameKey}/metadata` | Delete launcher-owned metadata for a game |
 | `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
 | `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload and promote save version |
 | `GET` | `/api/games/{nameKey}/download` | Fetch download URL for latest or specific version |

@@ -1,6 +1,6 @@
 /** User provisioning and account/quota overview. */
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity } from "./lib/api";
@@ -32,7 +32,7 @@ async function ensureUserRow(
 }
 
 /** Idempotently ensure a users row exists for the caller; returns its id. */
-export const getOrCreateUser = mutation({
+export const getOrCreateUser = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
   },
@@ -52,7 +52,7 @@ export const getOrCreateUser = mutation({
 /**
  * Return this user's payload encryption key, generating it on first use.
  */
-export const ensureDataKey = mutation({
+export const ensureDataKey = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
   },
@@ -94,7 +94,7 @@ function uint8ToB64(bytes: Uint8Array): string {
 }
 
 /** Account snapshot powering the settings UI quota bar and lists. */
-export const accountOverview = query({
+export const accountOverview = internalQuery({
   args: {
     authSubject: v.optional(v.string()),
   },
@@ -213,7 +213,7 @@ export const accountOverview = query({
 });
 
 /** Heartbeat and register a connected device */
-export const heartbeatDevice = mutation({
+export const heartbeatDevice = internalMutation({
   args: {
     deviceId: v.string(),
     deviceName: v.string(),
@@ -311,7 +311,7 @@ export const heartbeatDevice = mutation({
 
 /** Owner revocation of a device: soft-delete so its heartbeats cannot
  *  resurrect it. Returns true when the device exists and is revoked. */
-export const revokeDevice = mutation({
+export const revokeDevice = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
     deviceId: v.string(),

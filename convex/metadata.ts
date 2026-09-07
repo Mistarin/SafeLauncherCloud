@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { ApiError, requireIdentity, isValidNameKey } from "./lib/api";
@@ -11,7 +11,7 @@ async function userBySubject(ctx: MutationCtx | QueryCtx, authSubject?: string) 
     .unique();
 }
 
-export const getMetadata = query({
+export const getMetadata = internalQuery({
   args: { authSubject: v.optional(v.string()), nameKey: v.string() },
   handler: async (ctx, args) => {
     if (!isValidNameKey(args.nameKey)) {
@@ -28,7 +28,7 @@ export const getMetadata = query({
   },
 });
 
-export const putMetadata = mutation({
+export const putMetadata = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
     nameKey: v.string(),
@@ -52,7 +52,12 @@ export const putMetadata = mutation({
         q.eq("userId", user._id).eq("nameKey", args.nameKey)
       )
       .unique();
-    if (existing && args.revision !== undefined && args.revision !== existing.revision) {
+    if (existing && args.revision === undefined) {
+      throw new ApiError(409, "metadata_revision_required", "Revision is required when updating metadata.", {
+        revision: existing.revision,
+      });
+    }
+    if (existing && args.revision !== existing.revision) {
       throw new ApiError(409, "metadata_revision_conflict", "Metadata revision is stale.", {
         revision: existing.revision,
       });
@@ -71,5 +76,26 @@ export const putMetadata = mutation({
     if (existing) await ctx.db.patch(existing._id, value);
     else await ctx.db.insert("metadata", value);
     return { revision, updatedAt };
+  },
+});
+
+/** Remove launcher metadata through the authenticated HTTP boundary only. */
+export const deleteMetadata = internalMutation({
+  args: { authSubject: v.string(), nameKey: v.string() },
+  handler: async (ctx, args) => {
+    if (!isValidNameKey(args.nameKey)) {
+      throw new ApiError(400, "invalid_name_key", "Invalid game name key.");
+    }
+    const user = await userBySubject(ctx, args.authSubject);
+    if (!user) return false;
+    const existing = await ctx.db
+      .query("metadata")
+      .withIndex("by_user_and_name", (q) =>
+        q.eq("userId", user._id).eq("nameKey", args.nameKey)
+      )
+      .unique();
+    if (!existing) return false;
+    await ctx.db.delete(existing._id);
+    return true;
   },
 });

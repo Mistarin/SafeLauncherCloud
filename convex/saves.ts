@@ -1,10 +1,9 @@
 /** Save upload/download lifecycle: quotas, retention, idempotent confirms. */
 import { v } from "convex/values";
 import {
-  mutation,
-  query,
-  action,
+  internalMutation,
   internalQuery,
+  internalAction,
   MutationCtx,
   QueryCtx,
 } from "./_generated/server";
@@ -53,7 +52,7 @@ async function bytesUsedForUser(
  * Step 1 of upload: validate size + quota, create a pending save row, mint
  * an expiring storage upload URL. The row is promoted in confirmUpload.
  */
-export const requestUpload = mutation({
+export const requestUpload = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
     nameKey: v.string(),
@@ -146,7 +145,7 @@ function isStorageMetadata(meta: unknown): meta is { size: number } {
  * version, evict generations beyond retention, update aggregates.
  * Idempotent on retry.
  */
-export const confirmUpload = mutation({
+export const confirmUpload = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
     nameKey: v.string(),
@@ -243,7 +242,7 @@ export const confirmUpload = mutation({
 });
 
 /** All games with their retained generation metadata for conflict checks. */
-export const listGames = query({
+export const listGames = internalQuery({
   args: {
     authSubject: v.optional(v.string()),
   },
@@ -325,7 +324,7 @@ export const listGames = query({
 });
 
 /** Metadata used by the download flow: resolves an expiring blob URL. */
-export const resolveDownload = action({
+export const resolveDownload = internalAction({
   args: {
     authSubject: v.optional(v.string()),
     nameKey: v.string(),
@@ -393,7 +392,7 @@ export const lookupDownloadRefInternal = internalQuery({
 });
 
 /** Explicit manual delete of one generation. */
-export const deleteSave = mutation({
+export const deleteSave = internalMutation({
   args: {
     authSubject: v.optional(v.string()),
     nameKey: v.string(),
