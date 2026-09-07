@@ -1,10 +1,10 @@
 /** Hard resource limits shared by every enforcement point. */
 
-/** Maximum size in bytes of a single encrypted save blob upload. */
-export const MAX_SAVE_BYTES = 50 * 1024 * 1024; // 50 MiB
-
 /** Per-user total budget across all games (encrypted blobs counted). */
 export const QUOTA_BYTES = 1024 * 1024 * 1024; // 1 GiB (Convex Free Tier)
+
+/** Maximum size of one save blob; the free tier is the only hard cap. */
+export const MAX_SAVE_BYTES = QUOTA_BYTES;
 
 /** Historical generations retained per game after a confirmed upload.
  *  Two slots: the active save plus one backup generation, which conflict
@@ -17,4 +17,4 @@ export const MAX_UPLOADS_PER_DAY = 1000;
 /** Backend protocol version reported by /api/health; bumped with any
  *  client-visible API change. The client (core/version.py) compares this
  *  against MIN_CONVEX_BACKEND_VERSION to flag outdated deployments. */
-export const BACKEND_VERSION = "1.4.0";
+export const BACKEND_VERSION = "1.5.0";

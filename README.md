@@ -54,7 +54,7 @@ safelauncher --setup-cloud
 
 | Parameter | Value |
 | :--- | :--- |
-| Max save upload size | 50 MiB per game save |
+| Max save upload size | Up to the 1 GiB free quota |
 | Default storage quota | 1 GiB (matches Convex free tier) |
 | Version history | 2 versions retained per game (active plus one backup) |
 
