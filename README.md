@@ -2,7 +2,8 @@
 
 Private, self-hosted cloud save synchronization backend for [SafeLauncher](https://github.com/Mistarin/SafeLauncher).
 
-Stores client-encrypted game save backups on Convex File Storage with version rollback.
+Stores client-encrypted game save backups on Convex File Storage with version rollback,
+plus separate launcher-owned metadata for achievements, playtime, and last-played state.
 
 ---
 
@@ -45,7 +46,7 @@ safelauncher --setup-cloud
 
 * **Client-side AES-256-GCM encryption**: Save archives are encrypted locally before upload over HTTPS.
 * **Self-hosted**: You control the Convex deployment. Save archives and launcher metadata are encrypted client-side before upload. The current account key-recovery design is not zero-knowledge: an administrator with database and deployment access can recover the account key.
-* **Automatic pruning**: Retains the 3 most recent save versions per game to stay within storage limits.
+* **Automatic pruning**: Retains the 2 most recent save versions per game (active plus one backup) to stay within storage limits.
 
 ---
 
@@ -55,7 +56,7 @@ safelauncher --setup-cloud
 | :--- | :--- |
 | Max save upload size | 50 MiB per game save |
 | Default storage quota | 1 GiB (matches Convex free tier) |
-| Version history | 3 versions retained per game |
+| Version history | 2 versions retained per game (active plus one backup) |
 
 ---
 
@@ -67,7 +68,7 @@ safelauncher --setup-cloud
 | `GET` | `/api/me` | Account overview and storage quota |
 | `GET` | `/api/games` | List all backed-up games and version history |
 | `GET` | `/api/games/{nameKey}/metadata` | Fetch encrypted SafeLauncher-owned achievements/playtime metadata |
-| `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted metadata with optional revision check |
+| `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted metadata with revision checking |
 | `DELETE` | `/api/games/{nameKey}/metadata` | Delete launcher-owned metadata for a game |
 | `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
 | `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload and promote save version |
@@ -77,6 +78,7 @@ safelauncher --setup-cloud
 Metadata is encrypted by the desktop client before upload and is stored in a
 separate table from game save archives. This allows achievements, playtime,
 and last-played state to synchronize even when no game save is detectable.
-The `PUT` endpoint accepts `{ data, revision?, appId? }`; a stale revision
-returns HTTP 409 with `code: "metadata_revision_conflict"` and the current
-revision so the client can merge and retry.
+The `PUT` endpoint accepts `{ data, revision?, appId? }` for creation; updates
+to an existing record require the current revision. A stale or missing update
+revision returns HTTP 409 with the current revision so the client can merge
+and retry.
