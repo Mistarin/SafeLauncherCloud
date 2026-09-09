@@ -142,6 +142,31 @@ const routes: RouteDef[] = [
     },
   },
   {
+    method: "GET",
+    pattern: /^\/api\/profile$/,
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const profile = await ctx.runQuery(internal.metadata.getAchievementProfile, { authSubject: identity.subject });
+      if (!profile) return jsonResponse({ data: "", revision: 0, updatedAt: 0 });
+      return jsonResponse({ data: profile.data, revision: profile.revision, updatedAt: profile.updatedAt });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/profile$/,
+    handler: async (ctx, req) => {
+      const identity = await requireIdentity(ctx, req);
+      const body = await readJsonBody(req);
+      if (typeof body.data !== "string" || !body.data) throw new ApiError(400, "missing_field", "data is required.");
+      const result = await ctx.runMutation(internal.metadata.putAchievementProfile, {
+        authSubject: identity.subject,
+        data: body.data,
+        revision: typeof body.revision === "number" ? body.revision : undefined,
+      });
+      return jsonResponse(result);
+    },
+  },
+  {
     method: "PUT",
     pattern: /^\/api\/games\/([^/]+)\/metadata$/,
     handler: async (ctx, req, params) => {

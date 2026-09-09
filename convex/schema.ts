@@ -63,7 +63,7 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user_and_name", ["userId", "nameKey"]),
 
-  /** Encrypted account-wide append-only achievement ledger. */
+  /** Encrypted account-wide launcher profile (achievements and game metadata). */
   achievementProfiles: defineTable({
     userId: v.id("users"),
     data: v.string(),

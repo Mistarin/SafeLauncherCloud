@@ -117,7 +117,7 @@ export const putAchievementProfile = internalMutation({
   },
   handler: async (ctx, args) => {
     if (args.data.length < 1 || args.data.length > 1024 * 1024) {
-      throw new ApiError(413, "profile_too_large", "Achievement profile payload is too large.");
+      throw new ApiError(413, "profile_too_large", "Launcher profile payload is too large.");
     }
     const user = await userBySubject(ctx, args.authSubject);
     if (!user) throw new ApiError(401, "user_not_found", "User is not initialized.");
