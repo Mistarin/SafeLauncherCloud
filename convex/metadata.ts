@@ -99,3 +99,40 @@ export const deleteMetadata = internalMutation({
     return true;
   },
 });
+
+export const getAchievementProfile = internalQuery({
+  args: { authSubject: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const user = await userBySubject(ctx, args.authSubject);
+    if (!user) return null;
+    return await ctx.db.query("achievementProfiles").withIndex("by_user", (q) => q.eq("userId", user._id)).unique();
+  },
+});
+
+export const putAchievementProfile = internalMutation({
+  args: {
+    authSubject: v.optional(v.string()),
+    data: v.string(),
+    revision: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (args.data.length < 1 || args.data.length > 1024 * 1024) {
+      throw new ApiError(413, "profile_too_large", "Achievement profile payload is too large.");
+    }
+    const user = await userBySubject(ctx, args.authSubject);
+    if (!user) throw new ApiError(401, "user_not_found", "User is not initialized.");
+    const existing = await ctx.db.query("achievementProfiles").withIndex("by_user", (q) => q.eq("userId", user._id)).unique();
+    if (existing && args.revision === undefined) {
+      throw new ApiError(409, "profile_revision_required", "Revision is required when updating the profile.", { revision: existing.revision });
+    }
+    if (existing && args.revision !== existing.revision) {
+      throw new ApiError(409, "profile_revision_conflict", "Achievement profile revision is stale.", { revision: existing.revision });
+    }
+    const revision = existing ? existing.revision + 1 : 1;
+    const updatedAt = Date.now();
+    const value = { userId: user._id, data: args.data, revision, updatedAt };
+    if (existing) await ctx.db.patch(existing._id, value);
+    else await ctx.db.insert("achievementProfiles", value);
+    return { revision, updatedAt };
+  },
+});

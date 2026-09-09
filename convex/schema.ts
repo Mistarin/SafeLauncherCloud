@@ -63,6 +63,14 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user_and_name", ["userId", "nameKey"]),
 
+  /** Encrypted account-wide append-only achievement ledger. */
+  achievementProfiles: defineTable({
+    userId: v.id("users"),
+    data: v.string(),
+    revision: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   devices: defineTable({
     userId: v.id("users"),
     deviceId: v.string(),

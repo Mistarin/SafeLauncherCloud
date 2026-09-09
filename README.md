@@ -67,9 +67,11 @@ safelauncher --setup-cloud
 | `GET` | `/api/health` | Liveness health check |
 | `GET` | `/api/me` | Account overview and storage quota |
 | `GET` | `/api/games` | List all backed-up games and version history |
-| `GET` | `/api/games/{nameKey}/metadata` | Fetch encrypted SafeLauncher-owned achievements/playtime metadata |
-| `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted metadata with revision checking |
+| `GET` | `/api/games/{nameKey}/metadata` | Fetch encrypted SafeLauncher-owned playtime metadata (legacy achievements readable) |
+| `PUT` | `/api/games/{nameKey}/metadata` | Store encrypted per-game metadata with revision checking |
 | `DELETE` | `/api/games/{nameKey}/metadata` | Delete launcher-owned metadata for a game |
+| `GET` | `/api/profile/achievements` | Fetch the encrypted account-wide achievement ledger |
+| `PUT` | `/api/profile/achievements` | Union-sync the encrypted append-only achievement ledger |
 | `POST` | `/api/games/{nameKey}/init-upload` | Request upload URL for save archive |
 | `POST` | `/api/games/{nameKey}/confirm-upload` | Confirm upload and promote save version |
 | `GET` | `/api/games/{nameKey}/download` | Fetch download URL for latest or specific version |
@@ -78,6 +80,10 @@ safelauncher --setup-cloud
 Metadata is encrypted by the desktop client before upload and is stored in a
 separate table from game save archives. This allows achievements, playtime,
 and last-played state to synchronize even when no game save is detectable.
+Achievement unlocks are stored separately in the account-wide profile ledger,
+keyed by Steam AppID and achievement API name. Profile merges are append-only:
+deleting a game, restoring an older save, or uploading a smaller schema cannot
+remove an existing unlock.
 The `PUT` endpoint accepts `{ data, revision?, appId? }` for creation; updates
 to an existing record require the current revision. A stale or missing update
 revision returns HTTP 409 with the current revision so the client can merge
