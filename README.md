@@ -92,3 +92,10 @@ The `PUT` endpoint accepts `{ data, revision?, appId? }` for creation; updates
 to an existing record require the current revision. A stale or missing update
 revision returns HTTP 409 with the current revision so the client can merge
 and retry.
+
+---
+
+## License
+
+Licensed under the GNU General Public License v3.0 (GPLv3). See [`LICENSE`](LICENSE) for details.
+

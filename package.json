@@ -1,6 +1,7 @@
 {
   "name": "safelauncher-database",
   "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "description": "Convex backend powering SafeLauncher cloud saves (accounts, quotas, encrypted save storage)",
   "scripts": {
