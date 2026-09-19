@@ -60,6 +60,12 @@ export const requestUpload = internalMutation({
     plainSha256: v.string(),
     sourceMaxMtime: v.number(),
     declaredSizeBytes: v.number(),
+    createdDeviceId: v.optional(v.string()),
+    createdDeviceName: v.optional(v.string()),
+    createdDevicePlatform: v.optional(v.string()),
+    uploadedDeviceId: v.optional(v.string()),
+    uploadedDeviceName: v.optional(v.string()),
+    uploadedDevicePlatform: v.optional(v.string()),
   },
   returns: v.object({
     saveId: v.id("saves"),
@@ -127,6 +133,12 @@ export const requestUpload = internalMutation({
       plainSha256: args.plainSha256,
       sourceMaxMtime: args.sourceMaxMtime,
       createdAt: Date.now(),
+      createdDeviceId: args.createdDeviceId,
+      createdDeviceName: args.createdDeviceName,
+      createdDevicePlatform: args.createdDevicePlatform,
+      uploadedDeviceId: args.uploadedDeviceId,
+      uploadedDeviceName: args.uploadedDeviceName,
+      uploadedDevicePlatform: args.uploadedDevicePlatform,
     });
 
     const uploadUrl = await ctx.storage.generateUploadUrl();
@@ -151,6 +163,9 @@ export const confirmUpload = internalMutation({
     nameKey: v.string(),
     saveId: v.id("saves"),
     storageId: v.id("_storage"),
+    uploadedDeviceId: v.optional(v.string()),
+    uploadedDeviceName: v.optional(v.string()),
+    uploadedDevicePlatform: v.optional(v.string()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -201,6 +216,9 @@ export const confirmUpload = internalMutation({
       version,
       storageId: args.storageId,
       sizeBytes: meta.size,
+      uploadedDeviceId: args.uploadedDeviceId,
+      uploadedDeviceName: args.uploadedDeviceName,
+      uploadedDevicePlatform: args.uploadedDevicePlatform,
     });
 
     // Retention: newest KEEP_VERSIONS generations survive.
@@ -260,6 +278,12 @@ export const listGames = internalQuery({
             plainSha256: v.string(),
             sourceMaxMtime: v.number(),
             createdAt: v.number(),
+            createdDeviceId: v.optional(v.string()),
+            createdDeviceName: v.optional(v.string()),
+            createdDevicePlatform: v.optional(v.string()),
+            uploadedDeviceId: v.optional(v.string()),
+            uploadedDeviceName: v.optional(v.string()),
+            uploadedDevicePlatform: v.optional(v.string()),
           })
         ),
       })
@@ -288,6 +312,9 @@ export const listGames = internalQuery({
       versions: Array<{
         version: number; sizeBytes: number; plainSha256: string;
         sourceMaxMtime: number; createdAt: number;
+        createdDeviceId?: string; createdDeviceName?: string;
+        createdDevicePlatform?: string; uploadedDeviceId?: string;
+        uploadedDeviceName?: string; uploadedDevicePlatform?: string;
       }>;
     }> = [];
     for await (const g of ctx.db
@@ -296,6 +323,9 @@ export const listGames = internalQuery({
       const versions: Array<{
         version: number; sizeBytes: number; plainSha256: string;
         sourceMaxMtime: number; createdAt: number;
+        createdDeviceId?: string; createdDeviceName?: string;
+        createdDevicePlatform?: string; uploadedDeviceId?: string;
+        uploadedDeviceName?: string; uploadedDevicePlatform?: string;
       }> = [];
       for await (const s of ctx.db
         .query("saves")
@@ -307,6 +337,12 @@ export const listGames = internalQuery({
           plainSha256: s.plainSha256,
           sourceMaxMtime: s.sourceMaxMtime,
           createdAt: s.createdAt,
+          ...(s.createdDeviceId ? { createdDeviceId: s.createdDeviceId } : {}),
+          ...(s.createdDeviceName ? { createdDeviceName: s.createdDeviceName } : {}),
+          ...(s.createdDevicePlatform ? { createdDevicePlatform: s.createdDevicePlatform } : {}),
+          ...(s.uploadedDeviceId ? { uploadedDeviceId: s.uploadedDeviceId } : {}),
+          ...(s.uploadedDeviceName ? { uploadedDeviceName: s.uploadedDeviceName } : {}),
+          ...(s.uploadedDevicePlatform ? { uploadedDevicePlatform: s.uploadedDevicePlatform } : {}),
         });
       }
       versions.sort((a, b) => b.version - a.version);

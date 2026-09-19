@@ -198,6 +198,12 @@ const routes: RouteDef[] = [
         plainSha256: String(body.plainSha256 ?? ""),
         sourceMaxMtime: argNumber(body, "sourceMaxMtime"),
         declaredSizeBytes: argNumber(body, "declaredSizeBytes"),
+        createdDeviceId: req.headers.get("X-SafeLauncher-Device-Id") ?? undefined,
+        createdDeviceName: req.headers.get("X-SafeLauncher-Device-Name") ?? undefined,
+        createdDevicePlatform: req.headers.get("X-SafeLauncher-Platform") ?? undefined,
+        uploadedDeviceId: req.headers.get("X-SafeLauncher-Device-Id") ?? undefined,
+        uploadedDeviceName: req.headers.get("X-SafeLauncher-Device-Name") ?? undefined,
+        uploadedDevicePlatform: req.headers.get("X-SafeLauncher-Platform") ?? undefined,
       });
       return jsonResponse(result);
     },
@@ -216,6 +222,9 @@ const routes: RouteDef[] = [
         nameKey: decodeURIComponent(params.nameKey),
         saveId: body.saveId as never,
         storageId: body.storageId as never,
+        uploadedDeviceId: req.headers.get("X-SafeLauncher-Device-Id") ?? undefined,
+        uploadedDeviceName: req.headers.get("X-SafeLauncher-Device-Name") ?? undefined,
+        uploadedDevicePlatform: req.headers.get("X-SafeLauncher-Platform") ?? undefined,
       });
       return jsonResponse(result);
     },

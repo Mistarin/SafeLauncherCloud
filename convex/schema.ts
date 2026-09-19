@@ -44,6 +44,13 @@ export default defineSchema({
     plainSha256: v.string(),
     sourceMaxMtime: v.number(),
     createdAt: v.number(),
+    /** Device provenance is optional for generations created before v1.8.0. */
+    createdDeviceId: v.optional(v.string()),
+    createdDeviceName: v.optional(v.string()),
+    createdDevicePlatform: v.optional(v.string()),
+    uploadedDeviceId: v.optional(v.string()),
+    uploadedDeviceName: v.optional(v.string()),
+    uploadedDevicePlatform: v.optional(v.string()),
   })
     .index("by_game_version", ["gameId", "version"])
     .index("by_user", ["userId"])
