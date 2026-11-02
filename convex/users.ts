@@ -178,7 +178,7 @@ export const accountOverview = internalQuery({
       }
 
       const now = Date.now();
-      const onlineThreshold = now - 15 * 60 * 1000;
+      const onlineThreshold = now - 90 * 1000;
       const allDevices = await ctx.db
         .query("devices")
         .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -259,7 +259,7 @@ export const heartbeatDevice = internalMutation({
           .withIndex("by_user", (q) => q.eq("userId", userId))
           .collect();
         const live = all.filter((d) => d.revokedAt === undefined);
-        const threshold = Date.now() - 15 * 60 * 1000;
+        const threshold = Date.now() - 90 * 1000;
         const devicesList = live.map((d) => ({
           deviceId: d.deviceId,
           deviceName: d.deviceName,
@@ -289,7 +289,7 @@ export const heartbeatDevice = internalMutation({
       });
     }
 
-    const onlineThreshold = now - 15 * 60 * 1000;
+    const onlineThreshold = now - 90 * 1000;
     const allDevices = await ctx.db
       .query("devices")
       .withIndex("by_user", (q) => q.eq("userId", userId))
